@@ -1,0 +1,10 @@
+{
+    "name": "@sameera/fetchling",
+    "version": "0.0.1",
+    "type": "module",
+    "peerDependencies": {
+        "@tanstack/react-query": "^5.0.0",
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0"
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "name": "@quantum/query",
+    "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "libs/shared/query/src",
+    "projectType": "library",
+    "tags": [],
+    "// targets": "to see all targets run: nx show project @quantum/query --web",
+    "targets": {
+        "build": {
+            "executor": "@nx/js:tsc",
+            "outputs": [
+                "{options.outputPath}"
+            ],
+            "options": {
+                "outputPath": "dist/libs/shared/query",
+                "main": "libs/shared/query/src/index.ts",
+                "tsConfig": "libs/shared/query/tsconfig.lib.json",
+                "assets": []
+            }
+        }
+    }
+}
