@@ -195,4 +195,4 @@ async handler(request, reply) {
 
 ## Running unit tests
 
-Run `nx test @quantum/query` to execute the unit tests via [Vitest](https://vitest.dev/).
+Run `nx test @sameera/fetchling` to execute the unit tests via [Vitest](https://vitest.dev/).

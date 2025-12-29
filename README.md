@@ -1,8 +1,8 @@
-# @quantum/query Library Documentation
+# @sameera/fetchling Library Documentation
 
 ## Overview
 
-The `@quantum/query` library is a unified query cache system that implements **local-first data fetching** with the **SWR (Stale-While-Revalidate)** pattern. It combines TanStack Query v5 and Dexie (IndexedDB) to provide near-zero latency data access with automatic server synchronization.
+The `@sameera/fetchling` library is a unified query cache system that implements **local-first data fetching** with the **SWR (Stale-While-Revalidate)** pattern. It combines TanStack Query v5 and Dexie (IndexedDB) to provide near-zero latency data access with automatic server synchronization.
 
 ## Purpose
 
@@ -118,7 +118,7 @@ All operations work offline through IndexedDB. When connectivity returns, pendin
 ### Creating a Resource
 
 ```typescript
-import { query } from "@sameera/quantum-query";
+import { query } from "@sameera/fetchling";
 import type { Space } from "./types";
 
 // Create resource API
@@ -285,7 +285,7 @@ All TanStack Query options are supported, including:
 Run unit tests:
 
 ```bash
-npx nx test @sameera/quantum-query
+npx nx test @sameera/fetchling
 ```
 
 Test files:
