@@ -1,144 +1,18 @@
-# @quantum/query
-
-A unified query cache library for **local-first data fetching** with SWR (Stale-While-Revalidate) pattern using TanStack Query and Dexie (IndexedDB).
+# @sameera/fetchling Library Documentation
 
 ## Overview
 
-`@quantum/query` provides instant, offline-first data access for React applications by combining IndexedDB local storage with intelligent background synchronization. Built on top of TanStack Query (React Query) and Dexie, it gives you the best of both worlds: lightning-fast UI updates from local cache and automatic background data freshness.
+The `@sameera/fetchling` library is a unified query cache system that implements **local-first data fetching** with the **SWR (Stale-While-Revalidate)** pattern. It combines TanStack Query v5 and Dexie (IndexedDB) to provide near-zero latency data access with automatic server synchronization.
 
-### Key Features
+## Purpose
 
--   **Local-First Architecture** - Data reads from IndexedDB first for instant UI updates
--   **SWR Pattern** - Stale data served immediately while fresh data loads in background
--   **Automatic Sync** - Network requests update both local cache and React Query cache
--   **Type-Safe** - Full TypeScript support with generics and type inference
--   **React Hooks** - Powered by TanStack Query with auto-enabling queries
--   **Composite Keys** - Support for both simple (`id`) and composite primary keys
--   **Optimistic Updates** - Debounced mutations with two-tier persistence
--   **Zero Configuration** - Sensible defaults with optional customization
+This library solves the challenge of building responsive applications that feel instant while maintaining data consistency with backend APIs. It provides:
 
-### Architecture
-
-```mermaid
-graph TD
-    A[React Component] -->|useList, useGetById| B[TanStack Query Cache]
-    B -->|Read: Check cache first| C[Dexie IndexedDB]
-    B -->|Fetch fresh data| D[HTTP API]
-    D -->|Update cache| B
-    D -->|Update local storage| C
-    B -->|Mutations: create, update, delete| D
-    D -->|Invalidate & refetch| B
-
-    C -.->|Instant response| A
-    D -.->|Fresh data| A
-
-    style C fill:#4CAF50,stroke:#2E7D32,color:#fff
-    style D fill:#2196F3,stroke:#1565C0,color:#fff
-    style B fill:#FF9800,stroke:#E65100,color:#fff
-    style A fill:#9C27B0,stroke:#6A1B9A,color:#fff
-```
-
-**Data Flow:**
-
-1. **Read Path**: Query checks Dexie first → returns cached data instantly → fetches from API in background → updates caches
-2. **Write Path**: Mutation updates API → invalidates query cache → background refetch updates Dexie
-
-## Installation
-
-```bash
-pnpm add @sameera/quantum
-```
-
-### Peer Dependencies
-
-This library requires:
-
--   `react` >= 18.0.0
--   `@tanstack/react-query` >= 5.0.0
--   `dexie` >= 3.0.0
-
-These should already be installed in your project.
-
-## Quick Start
-
-### 1. Define Your Entity Type
-
-```typescript
-import type { BaseEntity } from "@sameera/quantum/query";
-
-interface Space extends BaseEntity<string> {
-    id: string;
-    name: string;
-    icon?: string;
-    owner: { id: string };
-}
-```
-
-### 2. Create a Resource
-
-```typescript
-import { query } from "@sameera/quantum/query";
-
-// Create resource (synchronous)
-export const spaces = query.createResource<Space>({
-    name: "spaces",
-    baseUrl: "/v1/spaces",
-});
-```
-
-### 3. Initialize the Database
-
-```typescript
-// In your app initialization (e.g., main.tsx or App.tsx)
-import { query } from "@sameera/quantum/query";
-
-async function initializeApp() {
-    await query.initialize(); // Creates all IndexedDB tables
-}
-
-initializeApp();
-```
-
-### 4. Use in React Components
-
-```typescript
-function SpacesList() {
-    // Auto-enabled when all params are defined
-    const { data: spaces, isLoading } = spaces.useList();
-
-    if (isLoading) return <div>Loading...</div>;
-
-    return (
-        <ul>
-            {spaces?.map((space) => (
-                <li key={space.id}>{space.name}</li>
-            ))}
-        </ul>
-    );
-}
-
-function SpaceDetail({ spaceId }: { spaceId: string }) {
-    // Auto-enabled when spaceId is defined
-    const { data: space } = spaces.useGetById(spaceId);
-    const updateSpace = spaces.useUpdate();
-
-    const handleRename = (newName: string) => {
-        updateSpace.mutate({
-            id: spaceId,
-            data: { name: newName },
-        });
-    };
-
-    if (!space) return null;
-
-    return (
-        <div>
-            <h1>{space.name}</h1>
-            <button onClick={() => handleRename("New Name")}>Rename</button>
-        </div>
-    );
-}
-```
+-   **Instant data access** through IndexedDB caching
+-   **Automatic background synchronization** with REST APIs
+-   **Optimistic updates** for better user experience
+-   **Offline-first capabilities** with automatic retry
+-   **Type-safe resource management** with TypeScript
 
 ## Core Concepts
 
@@ -252,6 +126,11 @@ Creates a fully-featured resource API with CRUD operations, React hooks, and cac
 
 ```typescript
 const spaces = query.createResource<Space>({
+import { query } from "@sameera/fetchling";
+import type { Space } from "./types";
+
+// Create resource API
+const spaces = query.createResource<Space, string>({
     name: "spaces",
     baseUrl: "/v1/spaces",
 });
@@ -433,784 +312,156 @@ function SpacesList({ userId }: { userId?: string }) {
         </ul>
     );
 }
+
+function SpaceEditor({ spaceId }: { spaceId: string }) {
+    const { data: space } = spaces.hooks.useGetById(spaceId);
+    const updateMutation = spaces.hooks.useUpdate();
+
+    const handleSave = (updates: Partial<Space>) => {
+        updateMutation.mutate({ id: spaceId, data: updates });
+    };
+
+    // ... editor UI
+}
 ```
 
-**With custom options:**
+### Manual Cache Operations
 
 ```typescript
-const { data: spaces = [] } = spaces.useList(
-    { owner: userId },
+// Seed cache with data from another source
+spaces.cache.seedOne(spaceData);
+spaces.cache.seedMany([space1, space2, space3]);
+
+// Clear all caches for this resource
+spaces.cache.clearCache();
+```
+
+### Configuring Stale Time
+
+By default, all queries use `staleTime: 0`, which means data is considered stale immediately and will always be refetched when a component mounts. This aggressive refetching ensures you always have the freshest data, which aligns with the SWR pattern.
+
+However, you can override `staleTime` on a per-query basis by passing options to the hooks:
+
+```typescript
+// Override stale time for a single entity query
+function UserProfile({ userId }: { userId: string }) {
+    const { data: user } = users.hooks.useGetById(userId, {
+        staleTime: 5000, // Consider data fresh for 5 seconds
+    });
+
+    // ... component code
+}
+
+// Override stale time for a list query
+function SpaceList() {
+    const { data: spaces } = spaces.hooks.useList(
+        { archived: false },
+        {
+            staleTime: 60000, // Consider data fresh for 1 minute
+        }
+    );
+
+    // ... component code
+}
+```
+
+**When to use custom staleTime:**
+
+-   **High staleTime (30s - 5min)**: Relatively static data that changes infrequently (user profiles, settings, configuration)
+-   **Medium staleTime (5s - 30s)**: Data that changes occasionally but not frequently (list of spaces, categories)
+-   **Low staleTime (0 - 5s)**: Dynamic data that may change frequently (task lists, real-time feeds, notifications)
+-   **staleTime: Infinity**: Data that never changes after creation (archived records, historical data)
+
+**Note:** Even with a high staleTime, the SWR pattern means the UI still gets instant updates from IndexedDB cache. The staleTime only affects whether a background refetch is triggered.
+
+```typescript
+// Example: User settings that rarely change
+const { data: settings } = userSettings.hooks.useGetById(userId, {
+    staleTime: 5 * 60 * 1000, // 5 minutes - settings rarely change
+    refetchOnMount: false, // Don't refetch every mount
+});
+
+// Example: Real-time task list
+const { data: tasks } = tasks.hooks.useList(
+    { status: "active" },
     {
-        enabled: userId !== undefined && isReady,
-        staleTime: 10000,
+        staleTime: 0, // Always stale - refetch on every mount
+        refetchInterval: 30000, // Also poll every 30 seconds
     }
 );
 ```
 
-### `useCreate()`
+All TanStack Query options are supported, including:
 
-Create mutation hook with automatic cache invalidation.
+-   `staleTime` - How long data stays fresh
+-   `refetchOnMount` - Refetch when component mounts
+-   `refetchOnWindowFocus` - Refetch when window regains focus
+-   `refetchInterval` - Polling interval
+-   `enabled` - Conditionally enable/disable the query
+-   And all other [TanStack Query options](https://tanstack.com/query/latest/docs/react/reference/useQuery)
 
-```typescript
-function CreateSpaceForm() {
-    const createSpace = spaces.useCreate();
+## Key Exports
 
-    const handleSubmit = (name: string) => {
-        createSpace.mutate(
-            { name, owner: { id: userId } },
-            {
-                onSuccess: (newSpace) => {
-                    console.log("Created:", newSpace.id);
-                },
-                onError: (error) => {
-                    console.error("Failed:", error.message);
-                },
-            }
-        );
-    };
+### Core API
 
-    return (
-        <form
-            onSubmit={(e) => {
-                e.preventDefault();
-                handleSubmit(e.currentTarget.spaceName.value);
-            }}>
-            <input name="spaceName" />
-            <button disabled={createSpace.isPending}>
-                {createSpace.isPending ? "Creating..." : "Create"}
-            </button>
-        </form>
-    );
-}
+-   `query` - Singleton Query instance
+-   `Query` - Query class (extends Dexie)
+-   `apiRequest` - HTTP client function
+-   `ApiError` - Error class for API failures
+
+### Hooks
+
+-   `useDebouncedUpdate` - Two-tier persistence for high-frequency updates
+
+### Types
+
+-   `BaseEntity<ID>` - Generic entity type
+-   `ResourceConfig<T, ID>` - Configuration for creating resources
+-   `ResourceAPI<T, ID>` - Complete resource interface
+-   `ResourceOperations<T, ID>` - CRUD operations
+-   `ResourceHooks<T, ID>` - React hooks
+-   `CacheOperations<T>` - Cache management
+-   `QueryKeys<T, ID>` - Query key factory
+-   `ListParams` - Query parameters type
+
+## Related Documentation
+
+-   **[API Response Format Requirements](../README.md)** - Backend API contract and response format specifications
+-   **[Query Library Patterns](../../../../docs/tech-specs/query-library-patterns.md)** - Implementation patterns and best practices
+-   **[Library Source Code](../src/)** - Full implementation details
+
+## Dependencies
+
+### Peer Dependencies
+
+-   `@tanstack/react-query` ^5.0.0
+-   `react` ^18.0.0
+-   `react-dom` ^18.0.0
+
+### Runtime Dependencies
+
+-   `dexie` - IndexedDB wrapper
+-   `@sameera/quantum` - Authentication via userManager
+
+## Testing
+
+Run unit tests:
+
+```bash
+npx nx test @sameera/fetchling
 ```
 
-### `useUpdate()`
-
-Update mutation hook with automatic cache invalidation.
-
-```typescript
-function RenameSpace({ spaceId }: { spaceId: string }) {
-    const updateSpace = spaces.useUpdate();
-
-    const handleRename = (newName: string) => {
-        updateSpace.mutate(
-            { id: spaceId, data: { name: newName } },
-            {
-                onSuccess: () => console.log("Renamed successfully"),
-            }
-        );
-    };
-
-    return <button onClick={() => handleRename("New Name")}>Rename</button>;
-}
-```
-
-### `useDelete()`
-
-Delete mutation hook with automatic cache invalidation.
-
-```typescript
-function DeleteSpaceButton({ spaceId }: { spaceId: string }) {
-    const deleteSpace = spaces.useDelete();
-
-    return (
-        <button
-            onClick={() => deleteSpace.mutate(spaceId)}
-            disabled={deleteSpace.isPending}>
-            {deleteSpace.isPending ? "Deleting..." : "Delete"}
-        </button>
-    );
-}
-```
-
-## Cache Operations
-
-Manage the local cache manually when needed.
-
-### `seedOne(item: T): Promise<void>`
-
-Pre-populate cache with a single item. Updates both Dexie and React Query cache.
-
-```typescript
-// After external data fetch or SSR
-const initialSpace = await fetchSpaceFromServer();
-await spaces.seedOne(initialSpace);
-```
-
-### `seedMany(items: T[], params?: ListParams): Promise<void>`
-
-Pre-populate cache with multiple items. Updates both Dexie and React Query cache.
-
-```typescript
-// Seed initial data
-const initialSpaces = await fetchInitialSpaces();
-await spaces.seedMany(initialSpaces);
-
-// Seed with params (for specific list query)
-await spaces.seedMany(mySpaces, { owner: userId });
-```
-
-### `clearCache(): Promise<void>`
-
-Clear all cached data for this resource. Removes from both Dexie and React Query.
-
-```typescript
-// On logout
-await spaces.clearCache();
-await users.clearCache();
-```
-
-## Advanced Features
-
-### Debounced Updates
-
-For high-frequency updates (text editors, drag-and-drop), use `useDebouncedUpdate` to optimize API calls while maintaining data safety.
-
-```typescript
-import { useDebouncedUpdate } from "@sameera/quantum/query";
-
-function NoteEditor({ noteId }: { noteId: string }) {
-    const [content, setContent] = useState("");
-
-    // Immediate IndexedDB save, 1-second debounced API sync
-    const { debouncedUpdate, flush } = useDebouncedUpdate(notes, 1000);
-
-    const handleChange = async (newContent: string) => {
-        setContent(newContent);
-        // Saves to IndexedDB immediately, syncs to API after 1 second of inactivity
-        await debouncedUpdate(noteId, { content: newContent });
-    };
-
-    // Force immediate sync before unmount
-    useEffect(() => {
-        return () => {
-            flush();
-        };
-    }, [flush]);
-
-    return (
-        <textarea
-            value={content}
-            onChange={(e) => handleChange(e.target.value)}
-        />
-    );
-}
-```
-
-**How it works:**
-
-1. **Immediate IndexedDB save** - Data persisted locally instantly (no data loss)
-2. **Debounced API sync** - Server updates batched to reduce API load
-3. **Auto-flush on unmount** - Ensures pending updates sync before component cleanup
-
-**When to use:**
-
--   Text editors (typing) → 1000ms debounce
--   Drag-and-drop interfaces → 300ms debounce
--   Form inputs with auto-save → 500ms debounce
-
-### Composite Keys
-
-Use composite keys when entities are uniquely identified by multiple fields.
-
-```typescript
-interface CategoryTag {
-    category: { id: string };
-    tag: { id: string };
-    createdAt: string;
-}
-
-const categoryTags = query.createResource<
-    CategoryTag,
-    { category: string; tag: string }
->({
-    name: "categoryTags",
-    baseUrl: "/v1/category-tags",
-    keyFields: ["category", "tag"],
-});
-
-// URLs: /v1/category-tags/{category}/{tag}
-const tag = await categoryTags.getById({
-    category: "cat123",
-    tag: "tag456",
-});
-
-// Nested objects are flattened automatically for Dexie
-await categoryTags.create({
-    category: { id: "cat123" }, // Flattened to 'cat123' in IndexedDB
-    tag: { id: "tag456" }, // Flattened to 'tag456' in IndexedDB
-    createdAt: new Date().toISOString(),
-});
-```
-
-### Query Key Factory
-
-Each resource has a hierarchical query key factory for efficient cache invalidation.
-
-```typescript
-const { queryKeys } = spaces;
-
-queryKeys.all; // ['spaces']
-queryKeys.lists(); // ['spaces', 'list']
-queryKeys.list({ owner: "u1" }); // ['spaces', 'list', { owner: 'u1' }]
-queryKeys.detail("space123"); // ['spaces', 'detail', 'space123']
-```
-
-**Manual invalidation:**
-
-```typescript
-import { queryClient } from "@sameera/quantum/query";
-
-// Invalidate all spaces queries
-await queryClient.invalidateQueries({ queryKey: spaces.queryKeys.all });
-
-// Invalidate specific list
-await queryClient.invalidateQueries({
-    queryKey: spaces.queryKeys.list({ owner: userId }),
-});
-
-// Invalidate single item
-await queryClient.invalidateQueries({
-    queryKey: spaces.queryKeys.detail("space123"),
-});
-```
-
-### Custom Query Options
-
-All hooks accept TanStack Query options for fine-grained control.
-
-```typescript
-const { data: space } = spaces.useGetById(spaceId, {
-    staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
-    cacheTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnWindowFocus: false, // Don't refetch on tab focus
-    refetchOnReconnect: true, // Refetch on network reconnect
-    retry: 3, // Retry failed requests 3 times
-    enabled: userIsAuthenticated, // Conditional fetching
-});
-```
-
-## Type System
-
-### BaseEntity<ID>
-
-Base type for entities with simple or composite keys.
-
-```typescript
-// Simple key (default)
-interface User extends BaseEntity<string> {
-    id: string;
-    name: string;
-}
-
-// Composite key
-interface Tag extends BaseEntity<{ spaceId: string; name: string }> {
-    spaceId: string;
-    name: string;
-}
-```
-
-### FlattenRefs<T>
-
-Type utility that shallowly flattens nested reference objects to `{ id: ... }`.
-
-```typescript
-interface Tag {
-    name: string;
-    space: { id: string; name: string };
-    createdBy: { id: number; email: string };
-}
-
-type FlatTag = FlattenRefs<Tag>;
-// Result:
-// {
-//   name: string;
-//   space: { id: string };
-//   createdBy: { id: number };
-// }
-```
-
-**Use case:** When creating/updating entities, you only need to provide IDs for references:
-
-```typescript
-tags.create({
-    name: "urgent",
-    space: { id: "space123" }, // Don't need full space object
-    createdBy: { id: currentUserId }, // Don't need full user object
-});
-```
-
-### DeepFlattenRefs<T>
-
-Type utility that recursively flattens all nested references to `{ id: ... }`.
-
-```typescript
-interface Tag {
-    name: string;
-    space: {
-        id: string;
-        owner: { id: number; fullName: string };
-    };
-    children: Array<{ id: string; label: string }>;
-}
-
-type DeepFlatTag = DeepFlattenRefs<Tag>;
-// Result:
-// {
-//   name: string;
-//   space: { id: string };                // Full object collapsed
-//   children: Array<{ id: string }>;      // Array elements collapsed
-// }
-```
-
-### ListParams
-
-Type for query parameters in list operations.
-
-```typescript
-type ListParams = Record<
-    string,
-    string | number | boolean | string[] | undefined
->;
-
-// Examples
-spaces.list({ owner: userId }); // string
-spaces.list({ limit: 10, offset: 0 }); // number
-spaces.list({ includeArchived: true }); // boolean
-spaces.list({ tags: ["work", "urgent"] }); // string[]
-spaces.list({ search: searchTerm || undefined }); // undefined
-```
-
-## API Response Format Requirements
-
-All backend APIs that integrate with this library **must** follow a standardized response format to ensure compatibility with the client-side query operations.
-
-### HTTP Status Code Requirements
-
-APIs must use proper HTTP status codes to indicate success or failure:
-
--   **2xx Success**: Request succeeded, return `{ data: T | T[] }`
--   **4xx Client Error**: Invalid request, authentication/authorization failure, resource not found
--   **5xx Server Error**: Unexpected server error
-
-**The client library (`apiRequest`) throws an `ApiError` for all non-2xx responses**, so backend services should throw errors instead of returning error objects in the response body.
-
-### Required Response Structure
-
-#### Success Responses (HTTP 2xx)
-
-##### Single Resource Endpoints (GET, POST, PATCH)
-
-```typescript
-{
-    data: T; // The resource object
-}
-```
-
-**Example (HTTP 200):**
-
-```json
-{
-    "data": {
-        "id": "abc123...",
-        "name": "My Space",
-        "owner": { "id": "user123" }
-    }
-}
-```
-
-##### Collection Endpoints (GET /resources)
-
-```typescript
-{
-  data: T[]            // Array of resources
-}
-```
-
-**Example (HTTP 200):**
-
-```json
-{
-    "data": [
-        {
-            "id": "abc123...",
-            "name": "Space 1",
-            "owner": { "id": "user123" }
-        },
-        {
-            "id": "def456...",
-            "name": "Space 2",
-            "owner": { "id": "user456" }
-        }
-    ]
-}
-```
-
-#### Error Responses (HTTP 4xx, 5xx)
-
-When errors occur, throw appropriate HTTP errors with error details in the response body:
-
-```typescript
-{
-  error: {
-    code: string;       // Machine-readable error code
-    message: string;    // Human-readable error message
-    details?: string;   // Optional additional details
-  }
-}
-```
-
-**Example (HTTP 404):**
-
-```json
-{
-    "error": {
-        "code": "SPACE_NOT_FOUND",
-        "message": "Space not found or you do not have access"
-    }
-}
-```
-
-**Example (HTTP 400):**
-
-```json
-{
-    "error": {
-        "code": "INVALID_CAS_KEY",
-        "message": "The provided space ID does not match the expected CAS key",
-        "details": "Space ID validation failed"
-    }
-}
-```
-
-### Key Points
-
-1. **Use HTTP status codes** - Throw errors with appropriate status codes (400, 401, 403, 404, 409, 500) instead of returning HTTP 200 with error objects
-
-2. **Success responses use `data` wrapper** - Always use `data` as the property name, not resource-specific names like `space`, `spaces`, `categories`
-
-3. **Error responses use `error` object** - Use singular `error` (not `errors` array) with `code`, `message`, and optional `details`
-
-4. **Client handles errors automatically** - The `apiRequest` function throws `ApiError` for non-2xx responses, which is caught by the query library
-
-5. **DELETE operations** - DELETE endpoints return HTTP 204 No Content with no response body
-
-### Examples by HTTP Method and Status Code
-
-```typescript
-// GET /spaces/:id
-// Success (200): { data: Space }
-// Not Found (404): { error: { code: "SPACE_NOT_FOUND", message: "..." } }
-// Access Denied (403): { error: { code: "ACCESS_DENIED", message: "..." } }
-
-// POST /spaces
-// Success (200): { data: Space }
-// Bad Request (400): { error: { code: "INVALID_CAS_KEY", message: "..." } }
-// Conflict (409): { error: { code: "SPACE_ALREADY_EXISTS", message: "..." } }
-
-// PATCH /spaces/:id
-// Success (200): { data: Space }
-// Not Found (404): { error: { code: "SPACE_NOT_FOUND", message: "..." } }
-
-// GET /spaces
-// Success (200): { data: Space[] }
-// Empty result: { data: [] } (still HTTP 200)
-
-// DELETE /spaces/:id
-// Success: HTTP 204 No Content (no body)
-// Not Found (404): { error: { code: "SPACE_NOT_FOUND", message: "..." } }
-```
-
-### TypeScript Types
-
-When defining response DTOs in your backend, follow this pattern:
-
-```typescript
-// Success response - single resource
-export interface ResourceResponseDto {
-    data: ResourceDto;
-}
-
-// Success response - collection
-export interface ResourcesResponseDto {
-    data: ResourceDto[];
-}
-
-// Error response (thrown, not returned)
-export class ResourceNotFoundError extends NotFoundError {
-    constructor(message: string = "Resource not found") {
-        super(message, "RESOURCE_NOT_FOUND");
-    }
-}
-```
-
-### Backend Implementation Pattern
-
-```typescript
-// Service layer - throw errors
-async getById(id: string): Promise<ResourceDto> {
-  const resource = await db.findById(id);
-  if (!resource) {
-    throw new NotFoundError("Resource not found", "RESOURCE_NOT_FOUND");
-  }
-  return resource;
-}
-
-// Handler layer - catch errors and set status codes
-async handler(request, reply) {
-  try {
-    const resource = await service.getById(id);
-    return reply.status(200).send({ data: resource });
-  } catch (error) {
-    if (error instanceof NotFoundError) {
-      return reply.status(404).send({
-        error: {
-          code: error.code,
-          message: error.message,
-          details: error.details
-        }
-      });
-    }
-    throw error; // Let global error handler deal with unexpected errors
-  }
-}
-```
-
-## Best Practices
-
-### When to Use Debounced Updates
-
-Use `useDebouncedUpdate` for high-frequency updates:
-
--   ✅ Text editors, rich text editors
--   ✅ Drag-and-drop interfaces
--   ✅ Canvas/drawing applications
--   ✅ Form auto-save
--   ❌ Button clicks (use regular mutations)
--   ❌ Form submissions (use regular mutations)
-
-### Performance Optimization
-
-**Stale time**: Configure how long data is considered fresh
-
-```typescript
-// Don't refetch for 5 minutes
-const { data } = spaces.useGetById(id, { staleTime: 5 * 60 * 1000 });
-```
-
-**Disable unnecessary refetches:**
-
-```typescript
-const { data } = spaces.useList(params, {
-    refetchOnWindowFocus: false, // Static data
-    refetchOnReconnect: false, // Data doesn't change server-side
-});
-```
-
-**Prefetch data:**
-
-```typescript
-import { queryClient } from "@sameera/quantum/query";
-
-// Prefetch on hover
-const handleMouseEnter = () => {
-    queryClient.prefetchQuery({
-        queryKey: spaces.queryKeys.detail(spaceId),
-        queryFn: () => spaces.getById(spaceId),
-    });
-};
-```
-
-### Error Handling
-
-**Component-level:**
-
-```typescript
-const { data, error, isError } = spaces.useGetById(id);
-
-if (isError) {
-    return <ErrorMessage error={error} />;
-}
-```
-
-**Mutation callbacks:**
-
-```typescript
-const createSpace = spaces.useCreate();
-
-createSpace.mutate(data, {
-    onSuccess: (newSpace) => {
-        toast.success("Space created!");
-        navigate(`/spaces/${newSpace.id}`);
-    },
-    onError: (error) => {
-        if (error.message.includes("DUPLICATE")) {
-            toast.error("A space with this name already exists");
-        } else {
-            toast.error("Failed to create space");
-        }
-    },
-});
-```
-
-### Testing Strategies
-
-**Mock the resource:**
-
-```typescript
-import { vi } from "vitest";
-import { spaces } from "./resources";
-
-vi.mock("./resources", () => ({
-    spaces: {
-        useGetById: vi.fn(() => ({
-            data: mockSpace,
-            isLoading: false,
-            error: null,
-        })),
-    },
-}));
-```
-
-**Provide test query client:**
-
-```typescript
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-function renderWithQuery(ui: React.ReactElement) {
-    const queryClient = new QueryClient({
-        defaultOptions: {
-            queries: { retry: false },
-            mutations: { retry: false },
-        },
-    });
-
-    return render(
-        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
-    );
-}
-```
-
-## Complete Examples
-
-### Todo App
-
-```typescript
-// types.ts
-interface Todo extends BaseEntity<string> {
-    id: string;
-    title: string;
-    completed: boolean;
-    userId: string;
-}
-
-// resources.ts
-import { query } from "@sameera/quantum/query";
-
-export const todos = query.createResource<Todo>({
-    name: "todos",
-    baseUrl: "/api/todos",
-});
-
-// Initialize in main.tsx
-await query.initialize();
-
-// TodoList.tsx
-function TodoList({ userId }: { userId: string }) {
-    const { data: todos = [], isLoading } = todos.useList({ userId });
-    const createTodo = todos.useCreate();
-    const updateTodo = todos.useUpdate();
-    const deleteTodo = todos.useDelete();
-
-    const handleAdd = (title: string) => {
-        createTodo.mutate({ title, completed: false, userId });
-    };
-
-    const handleToggle = (todo: Todo) => {
-        updateTodo.mutate({
-            id: todo.id,
-            data: { completed: !todo.completed },
-        });
-    };
-
-    if (isLoading) return <div>Loading...</div>;
-
-    return (
-        <div>
-            <TodoForm onSubmit={handleAdd} />
-            <ul>
-                {todos.map((todo) => (
-                    <li key={todo.id}>
-                        <input
-                            type="checkbox"
-                            checked={todo.completed}
-                            onChange={() => handleToggle(todo)}
-                        />
-                        <span>{todo.title}</span>
-                        <button onClick={() => deleteTodo.mutate(todo.id)}>
-                            Delete
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-}
-```
-
-### Multi-Tenant Tag System (Composite Keys)
-
-```typescript
-// types.ts
-interface Tag extends BaseEntity<{ spaceId: string; name: string }> {
-    spaceId: string;
-    name: string;
-    color: string;
-}
-
-// resources.ts
-export const tags = query.createResource<
-    Tag,
-    { spaceId: string; name: string }
->({
-    name: "tags",
-    baseUrl: "/v1/tags",
-    keyFields: ["spaceId", "name"],
-});
-
-// TagManager.tsx
-function TagManager({ spaceId }: { spaceId: string }) {
-    const { data: tags = [] } = tags.useList({ space: spaceId });
-    const createTag = tags.useCreate();
-    const updateTag = tags.useUpdate();
-
-    const handleCreate = (name: string, color: string) => {
-        createTag.mutate({ spaceId, name, color });
-    };
-
-    const handleUpdateColor = (tagName: string, newColor: string) => {
-        updateTag.mutate({
-            id: { spaceId, name: tagName },
-            data: { color: newColor },
-        });
-    };
-
-    return (
-        <div>
-            {tags.map((tag) => (
-                <TagBadge
-                    key={tag.name}
-                    tag={tag}
-                    onColorChange={(color) =>
-                        handleUpdateColor(tag.name, color)
-                    }
-                />
-            ))}
-        </div>
-    );
-}
-```
-
-## Running Tests
-
-Run `nx test @quantum/query` to execute the unit tests via [Vitest](https://vitest.dev/).
+Test files:
+
+-   `src/lib/api.test.ts` - API request layer
+-   `src/lib/query.test.ts` - Query initialization
+-   `src/lib/hooks/use-debounced-update.test.ts` - Debounced update hook
+
+## Design Principles
+
+1. **Local-First** - Always prioritize instant local data access
+2. **Declarative** - Define resources once, get full CRUD + hooks
+3. **Type-Safe** - Full TypeScript support with generic types
+4. **Automatic** - Cache invalidation and synchronization happen transparently
+5. **Flexible** - Support both simple and composite keys
+6. **Resilient** - Work offline, sync when connectivity returns
