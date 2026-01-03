@@ -8,13 +8,14 @@ import {
     vi,
 } from "vitest";
 
-// These will be defined when the mocks are set up
-let mockGetUserReference: ReturnType<typeof vi.fn>;
-let apiRequest: <T = unknown>(url: string, options?: any) => Promise<T>; // Dynamically imported
-let ApiError: any; // Dynamically imported
+// These will be defined when the module is imported
+let apiRequest: <T = unknown>(url: string, options?: any) => Promise<T>;
+let ApiError: any;
+let setTokenGetter: (getter: any) => void;
 
 // Declare mockFetch here
 const mockFetch = vi.fn();
+const mockTokenGetter = vi.fn();
 
 // Mock environment variable
 const originalViteApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
@@ -23,40 +24,26 @@ describe("API Tests", () => {
     const API_BASE_URL = "http://localhost:3000";
 
     beforeAll(async () => {
-        // Set VITE_API_BASE_URL *before* vi.doMock and dynamic import
+        // Set VITE_API_BASE_URL *before* dynamic import
         import.meta.env.VITE_API_BASE_URL = API_BASE_URL;
-
-        vi.doMock("@sameera/quantum/auth/user-manager", () => {
-            mockGetUserReference = vi.fn();
-            return {
-                userManager: {
-                    getUser: mockGetUserReference,
-                },
-            };
-        });
 
         // Stub global fetch BEFORE importing api.ts
         vi.stubGlobal("fetch", mockFetch);
 
-        console.log(
-            "Before dynamic import - Global fetch after stubbing:",
-            global.fetch
-        );
-        console.log(
-            "Before dynamic import - Is mockFetch a Vitest mock?",
-            vi.isMockFunction(mockFetch)
-        );
-
-        // Dynamically import the module under test *after* mocks are set up
+        // Dynamically import the module under test
         const apiModule = await import("./api");
         apiRequest = apiModule.apiRequest;
         ApiError = apiModule.ApiError;
+        setTokenGetter = apiModule.setTokenGetter;
+
+        // Configure the token getter with our mock
+        setTokenGetter(mockTokenGetter);
     });
 
     beforeEach(() => {
-        vi.clearAllMocks(); // Clears all mocks, including mockFetch if it's a vi.fn()
-        mockFetch.mockClear(); // Ensure mockFetch is cleared explicitly
-        mockGetUserReference.mockResolvedValue(null); // Default to no user
+        vi.clearAllMocks();
+        mockFetch.mockClear();
+        mockTokenGetter.mockResolvedValue(null); // Default to no token
     });
 
     afterAll(() => {
@@ -111,9 +98,7 @@ describe("API Tests", () => {
 
     it("should include Authorization header if user has access token", async () => {
         const mockAccessToken = "mock-access-token";
-        mockGetUserReference.mockResolvedValueOnce({
-            access_token: mockAccessToken,
-        });
+        mockTokenGetter.mockResolvedValueOnce(mockAccessToken);
         mockFetch.mockResolvedValueOnce(
             new Response(JSON.stringify({}), {
                 status: 200,

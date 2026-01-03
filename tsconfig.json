@@ -2,9 +2,16 @@
     "compilerOptions": {
         "jsx": "react-jsx",
         "allowJs": false,
-        "esModuleInterop": false,
+        "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
-        "strict": true
+        "strict": true,
+        "moduleResolution": "node",
+        "target": "esnext",
+        "module": "esnext",
+        "lib": ["esnext", "dom"],
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "isolatedModules": true
     },
     "files": [],
     "include": [],
@@ -15,6 +22,5 @@
         {
             "path": "./tsconfig.spec.json"
         }
-    ],
-    "extends": "../../../tsconfig.base.json"
+    ]
 }

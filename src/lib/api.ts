@@ -1,5 +1,3 @@
-import { userManager } from "@sameera/quantum/auth/user-manager";
-
 /**
  * Error thrown when an API request fails.
  */
@@ -15,6 +13,22 @@ export class ApiError extends Error {
     }
 }
 
+export type TokenGetter = () =>
+    | Promise<string | null | undefined>
+    | string
+    | null
+    | undefined;
+
+let tokenGetter: TokenGetter = () => undefined;
+
+/**
+ * Configures the token getter for API requests.
+ * Use this to integrate with your authentication system.
+ */
+export function setTokenGetter(getter: TokenGetter) {
+    tokenGetter = getter;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 /**
@@ -23,7 +37,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
  * Features:
  * - Automatic JSON encoding for request body
  * - Automatic JSON parsing for response
- * - Automatic authentication token injection from userManager
+ * - Automatic authentication token injection via tokenGetter
  * - Error handling with status codes
  * - Type-safe response
  *
@@ -36,14 +50,14 @@ export async function apiRequest<T>(
     url: string,
     options?: RequestInit
 ): Promise<T> {
-    // Get current user and access token from userManager (SessionStorage)
-    const user = await userManager.getUser();
+    // Get access token from the configured getter
+    const token = await tokenGetter();
 
     // Prepare headers with JSON content type and authorization
     const headers: HeadersInit = {
         "Content-Type": "application/json",
-        ...(user?.access_token && {
-            Authorization: `Bearer ${user.access_token}`,
+        ...(token && {
+            Authorization: `Bearer ${token}`,
         }),
         ...options?.headers,
     };

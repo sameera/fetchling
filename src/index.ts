@@ -1,6 +1,6 @@
 // Core API
 export { query, Query } from "./lib/query";
-export { apiRequest, ApiError } from "./lib/api";
+export { apiRequest, ApiError, setTokenGetter } from "./lib/api";
 
 // Hooks
 export { useDebouncedUpdate } from "./lib/hooks/use-debounced-update";
